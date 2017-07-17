@@ -1,0 +1,6 @@
+{
+    "name": "PI Timesheet Report App",
+    "sdk": "2.1",
+    "className": "PITimesheetReport",
+    "story": "US1615"
+}
