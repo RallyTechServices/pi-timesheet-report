@@ -3,13 +3,13 @@
 <head>
     <title>PI Timesheet Report App</title>
     <!--  (c) 2017 CA Technologies.  All Rights Reserved. -->
-    <!--  Build Date: Sun Jul 16 2017 12:51:59 GMT-0700 (PDT) -->
+    <!--  Build Date: Tue Jul 18 2017 13:57:21 GMT-0700 (PDT) -->
     
     <script type="text/javascript">
-        var APP_BUILD_DATE = "Sun Jul 16 2017 12:51:59 GMT-0700 (PDT)";
+        var APP_BUILD_DATE = "Tue Jul 18 2017 13:57:21 GMT-0700 (PDT)";
         var STORY    = "US1615";
         var BUILDER  = "rajan08";
-        var CHECKSUM = 26620761615;
+        var CHECKSUM = 37733771607;
     </script>
     
     <script type="text/javascript" src="/apps/2.1/sdk.js"></script>
@@ -810,7 +810,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
                             display_value = column.renderer(display_value, mock_meta_data, record, 0, 0, store, grid.getView());
                         }
                     }
-                    node_values.push(display_value ? display_value.replace(/"/g, '""') : display_value);
+                    node_values.push(display_value);
                 } else {
                     var display_value = null;
                     if (!column._csvIgnoreRender && column.renderer) {
@@ -819,7 +819,7 @@ Ext.define('Rally.technicalservices.FileUtilities', {
                         } else {
                             display_value = column.renderer(display_value, mock_meta_data, record, record, 0, 0, store, grid.getView());
                         }
-                        node_values.push(display_value ? display_value.replace(/"/g, '""') : display_value);
+                        node_values.push(display_value);
                     }
                 }
 
@@ -846,8 +846,15 @@ Ext.define("PITimesheetReport", {
                         
     launch: function() {
         var me = this;
-
-        me._addSelector()
+        me.getPortfolioItemTypes().then({
+            scope:me,
+            success: function(records){
+                console.log('getPortfolioItemTypes>>',records);
+                me.secondLevelPI = records[1].get('TypePath');
+                me._addSelector();
+            }
+        })
+        
         
 
     },
@@ -862,26 +869,47 @@ Ext.define("PITimesheetReport", {
             fieldLabel: "Portfolio Item:",
             labelAlign: 'right',
             remoteFilter: true,
+            valueField: 'ObjectID',
             storeConfig: {
                 pageSize: 300,
-                models: 'PortfolioItem/Initiative'
+                models: me.secondLevelPI
             }
         });
 
+        // me.down('#selector_box').add({
+        //     xtype: 'rallyiterationcombobox',
+        //     itemId: 'selectedIteration',
+        //     width: 500,
+        //     margin: '10 10 10 10',
+        //     itemId: 'selectedIteration',
+        //     fieldLabel: "Iteration:",
+        //     listeners: {
+        //         scope: me,
+        //         change: function(icb) {
+        //             me.iteration = icb;
+        //         }
+        //     }            
+        //  });
+
         me.down('#selector_box').add({
-            xtype: 'rallyiterationcombobox',
-            itemId: 'selectedIteration',
-            width: 500,
-            margin: '10 10 10 10',
-            itemId: 'selectedIteration',
-            fieldLabel: "Iteration:",
-            listeners: {
-                scope: me,
-                change: function(icb) {
-                    me.iteration = icb;
-                }
-            }            
-         });
+            xtype: 'rallydatefield',
+            fieldLabel: 'Select Dates:',
+            margin: '10 10 10 10',            
+            labelAlign: 'right',
+            itemId: 'startDate',
+            name: 'startDate',
+            stateful: true,
+            stateId: 'startDateSt'
+        });
+
+        me.down('#selector_box').add({
+            xtype: 'rallydatefield',
+            margin: '10 10 10 10',            
+            itemId: 'endDate',
+            name: 'endDate',
+            stateful: true,
+            stateId: 'endDateSt'
+        });
 
         me.down('#selector_box').add({
             xtype: 'rallybutton',
@@ -916,11 +944,11 @@ Ext.define("PITimesheetReport", {
 
     _updateView: function(){
         var me = this;
-        console.log('selectedIteration',me.iteration);
         this.setLoading("Loading stuff...");
+        console.log('selectedPi>>',this.down('#selectedPi').value);
 
         var model_name = 'TimeEntryValue',
-            field_names = ['Feature','PortfolioItem','ObjectID','Name','TimeEntryItem','Hours','DateVal','WorkProduct','Task','User','Project','FormattedId','Parent','WorkProductDisplayString','TaskDisplayString'];
+            field_names = ['Feature','PortfolioItem','ObjectID','Name','TimeEntryItem','Hours','DateVal','WorkProduct','Task','User','Project','FormattedId','Parent','WorkProductDisplayString','TaskDisplayString','User'];
         
         filters = [{
             property: 'Hours',
@@ -931,27 +959,128 @@ Ext.define("PITimesheetReport", {
         filters.push({
             property: 'DateVal',
             operator: '>',
-            value: me.iteration.valueModels[0].get('StartDate')            
-        })
+            value: me.down('#startDate').value            
+        });
 
         filters.push({
             property: 'DateVal',
             operator: '<',
-            value: me.iteration.valueModels[0].get('EndDate')            
-        })
-
-        this._loadAStoreWithAPromise(model_name, field_names,filters).then({
-            scope: this,
-            success: function(store) {
-                this._displayGrid(store);
-            },
-            failure: function(error_message){
-                alert(error_message);
-            }
-        }).always(function() {
-            me.setLoading(false);
+            value: me.down('#endDate').value           
         });
+
+        filters.push({
+            property: 'TimeEntryItem.Project.ObjectID',
+            value: me.getContext().getProject().ObjectID    
+        });
+
+
+        this._getWorkProductIds().then({
+            scope:me,
+            success: function(records){
+                var object_id_filters = [];
+                Ext.Array.each(records,function(ObjectID){
+                    object_id_filters.push({
+                        property:'TimeEntryItem.WorkProduct.ObjectID',
+                        value:ObjectID
+                    });                    
+                });
+
+                console.log('object_id_filters',object_id_filters);
+
+                if(object_id_filters.length > 0){
+                    filters = Rally.data.wsapi.Filter.or(object_id_filters).and(Rally.data.wsapi.Filter.and(filters));
+                }else{
+                    filters = Rally.data.wsapi.Filter.and(filters);
+                }
+                
+                var config =    {  
+                                    model:model_name, 
+                                    fetch:field_names,
+                                    filters:filters
+                                };
+
+                this._loadWsapiRecords(config).then({
+                    scope: this,
+                    success: function(records) {
+                        console.log('records',records)
+                        var task_records = {}
+                        Ext.Array.each(records,function(rec){
+                            var task_id = rec.get('TimeEntryItem').Task && rec.get('TimeEntryItem').Task.FormattedID || "No Task" ;
+                            if(task_records[task_id]){
+                                task_records[task_id].Hours += rec.get('Hours');
+                            }else{
+                                task_records[task_id] = {
+                                    'Initiative': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct.Feature && rec.get('TimeEntryItem').WorkProduct.Feature.Parent,
+                                    'Feature': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct.Feature,
+                                    'WorkItemType': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'HierarchicalRequirement' ?  'User Story' : rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type || "",
+                                    'WorkItem': rec.get('TimeEntryItem').WorkProduct,
+                                    'TaskName' : rec.get('TimeEntryItem').Task,
+                                    'User': rec.get('TimeEntryItem').User && rec.get('TimeEntryItem').User._refObjectName || "",
+                                    'StoryBusinessSponsor': "",
+                                    'DefectBusinessSponsor': "",
+                                    'StoryPrimarySystemImpacted': "",
+                                    'DefectPrimarySystemImpacted': "",
+                                    'Hours': rec.get('Hours')
+                                };
+                            }
+                        });
+                        
+                        console.log('custom task records>>', task_records);
+                        var store = Ext.create('Rally.data.custom.Store',{
+                            data: Ext.Object.getValues(task_records)
+                        });
+                        this._displayGrid(store);
+
+                    },
+                    failure: function(error_message){
+                        alert(error_message);
+                    }
+                }).always(function() {
+                    me.setLoading(false);
+                });                
+            }
+        })
     },
+
+    _getWorkProductIds: function(){
+        var deferred = Ext.create('Deft.Deferred');
+        var me = this;
+        var piObjectID = me.down('#selectedPi').value;
+        var work_product_ids = [];
+        if(!this.down('#selectedPi').value){
+            deferred.resolve([]);
+        }else{
+            var us_filters = [{property:'Feature.Parent.ObjectID',value:piObjectID}]
+
+            // Deft.Promise.all([me._loadWsapiRecords({model:'HierarchicalRequirement',fetch:['ObjectID'],filters:us_filters}),me._loadWsapiRecords({model:'Defect',fetch:['ObjectID'],filters:defect_filters})]).then({
+           me._loadWsapiRecords({model:'HierarchicalRequirement',fetch:['ObjectID'],filters:us_filters}).then({
+                scope:me,
+                success:function(records){
+                    console.log('_getWorkProductIds>>',records);
+                    var defect_filters = [];
+                    Ext.Array.each(records,function(us){
+                        work_product_ids.push(us.get('ObjectID'));
+                        defect_filters.push({
+                            property:'Requirement.ObjectID',
+                            value:us.get('ObjectID')
+                        });
+                        me._loadWsapiRecords({model:'Defect',fetch:['ObjectID'],filters:Rally.data.wsapi.Filter.or(defect_filters)}).then({
+                            scope:me,
+                            success: function(records){
+                                Ext.Array.each(records,function(defect){
+                                    work_product_ids.push(defect.get('ObjectID'));
+                                });
+                                console.log('work_product_ids',work_product_ids);
+                                 deferred.resolve(work_product_ids);
+                            }
+                        })
+                    });
+                }
+            });
+        }
+        return deferred.promise;
+    },
+
 
     _loadWsapiRecords: function(config){
         var deferred = Ext.create('Deft.Deferred');
@@ -998,39 +1127,69 @@ Ext.define("PITimesheetReport", {
     },
     
     _displayGrid: function(store,field_names){
-
+        this.down('#display_box').removeAll();
         this.down('#display_box').add({
             xtype: 'rallygrid',
             store: store,
             showRowActionsColumn: false,
-            columnCfgs: [   {
-                                dataIndex:'TimeEntryItem',
+            columnCfgs: [   
+                            {
+                                dataIndex:'Initiative',
                                 text:'Initiative',
+                                flex:1,
                                 renderer: function(value){
-                                    return value.WorkProduct && value.WorkProduct.Feature && value.WorkProduct.Feature.Parent && value.WorkProduct.Feature.Parent.FormattedID || "";
+                                  return value && Ext.create('Rally.ui.renderer.template.FormattedIDTemplate').apply(value) + ' : ' + value.Name;
+                                }
+                                ,
+                                exportRenderer:function(value){
+                                    return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
                             },
                             {
-                                dataIndex:'TimeEntryItem',
+                                dataIndex:'Feature',
                                 text:'Feature',
+                                flex:1,
                                 renderer: function(value){
-                                    return value.WorkProduct && value.WorkProduct.Feature && value.WorkProduct.Feature.FormattedID || "";
+                                  return value && Ext.create('Rally.ui.renderer.template.FormattedIDTemplate').apply(value) + ' : ' + value.Name;
+                                }
+                                ,
+                                exportRenderer:function(value){
+                                    return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
                             },                            
                             {
-                                dataIndex:'TimeEntryItem',
+                                dataIndex:'WorkItemType',
                                 text:'Work Item Type',
+
+                            },                            
+                            {
+                                dataIndex:'WorkItem',
+                                text:'Work Item',
+                                flex:1,
                                 renderer: function(value){
-                                    return value.WorkProduct && value.WorkProduct._type || "";
+                                  return value && Ext.create('Rally.ui.renderer.template.FormattedIDTemplate').apply(value) + ' : ' + value.Name;
+                                }
+                                ,
+                                exportRenderer:function(value){
+                                    return value && value.FormattedID + ' : ' + value.Name || "";
+                                }
+                            },                                    
+                            {
+                                dataIndex:'TaskName',
+                                text:'Task',
+                                flex:1,
+                                renderer: function(value){
+                                  return value && Ext.create('Rally.ui.renderer.template.FormattedIDTemplate').apply(value) + ' : ' + value.Name;
+                                }
+                                ,
+                                exportRenderer:function(value){
+                                    return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
                             },                            
                             {
-                                dataIndex:'TimeEntryItem',
-                                text:'Work Item',
-                                renderer: function(value){
-                                    return value.WorkProductDisplayString || "";
-                                }
-                            },                            
+                                dataIndex:'User',
+                                text:'User'
+                            },          
                             {
                                 //dataIndex:'c_StoryBusinessSponsor',
                                 text:'Story Business Sponsor'
@@ -1050,13 +1209,53 @@ Ext.define("PITimesheetReport", {
                             {
                                 dataIndex:'Hours',
                                 text:'Hours'
-                            },
-                            {
-                                dataIndex:'DateVal',
-                                text:'DateVal'
-                            }
-                            ]
+                            }                            
+                            ],
+                    width:this.getWidth()
         });
+    },
+
+
+    getPortfolioItemTypes: function(workspace) {
+        var deferred = Ext.create('Deft.Deferred');
+                
+        var store_config = {
+            fetch: ['Name','ElementName','TypePath'],
+            model: 'TypeDefinition',
+            filters: [
+                {
+                    property: 'Parent.Name',
+                    operator: '=',
+                    value: 'Portfolio Item'
+                },
+                {
+                    property: 'Creatable',
+                    operator: '=',
+                    value: 'true'
+                }
+            ],
+            autoLoad: true,
+            listeners: {
+                load: function(store, records, successful) {
+                    if (successful){
+                        deferred.resolve(records);
+                    } else {
+                        deferred.reject('Failed to load types');
+                    }
+                }
+            }
+        };
+        
+        if ( !Ext.isEmpty(workspace) ) {            
+            store_config.context = { 
+                project:null,
+                workspace: workspace._ref ? workspace._ref : workspace.get('_ref')
+            };
+        }
+                
+        var store = Ext.create('Rally.data.wsapi.Store', store_config );
+                    
+        return deferred.promise;
     },
 
     _export: function(){
