@@ -120,7 +120,7 @@ Ext.define("PITimesheetReport", {
         console.log('selectedPi>>',this.down('#selectedPi').value);
 
         var model_name = 'TimeEntryValue',
-            field_names = ['Feature','PortfolioItem','ObjectID','Name','TimeEntryItem','Hours','DateVal','WorkProduct','Task','User','Project','FormattedId','Parent','WorkProductDisplayString','TaskDisplayString','User','c_PrimarySystemImpacted','c_BusinessSponsor','InvestmentCategory'];
+            field_names = ['Feature','PortfolioItem','ObjectID','Name','TimeEntryItem','Hours','DateVal','WorkProduct','Task','User','Project','FormattedId','Parent','WorkProductDisplayString','TaskDisplayString','User','c_PrimarySystemImpacted','c_BusinessSponsor','InvestmentCategory','PlanEstimate','Estimate','c_Capabilities','ToDo','Requirement'];
         
         filters = [{
             property: 'Hours',
@@ -177,22 +177,42 @@ Ext.define("PITimesheetReport", {
                         console.log('records',records)
                         var task_records = {}
                         Ext.Array.each(records,function(rec){
-                            var task_id = rec.get('TimeEntryItem').Task && rec.get('TimeEntryItem').Task.FormattedID || "No Task" ;
+                            var time_entry_item = rec.get('TimeEntryItem');
+                            var task_id = time_entry_item.Task && time_entry_item.Task.FormattedID || "No Task" ;
+                            
+                            var business_sponsor = "";
+
+                            if(time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement'){
+                                business_sponsor = time_entry_item.WorkProduct.c_BusinessSponsor || ""
+                            }else if(time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect'){
+                                business_sponsor = time_entry_item.WorkProduct.c_BusinessSponsor ? time_entry_item.WorkProduct.c_BusinessSponsor : time_entry_item.WorkProduct.Requirement.c_BusinessSponsor || "";
+                            }
+
+                            var primary_system_impacted = "";
+
+                            if(time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement'){
+                                primary_system_impacted = time_entry_item.WorkProduct.c_PrimarySystemImpacted || ""
+                            }else if(time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect'){
+                                primary_system_impacted = time_entry_item.WorkProduct.c_PrimarySystemImpacted ? time_entry_item.WorkProduct.c_PrimarySystemImpacted : time_entry_item.WorkProduct.Requirement.c_PrimarySystemImpacted || "";
+                            }
+
                             if(task_records[task_id]){
                                 task_records[task_id].Hours += rec.get('Hours');
                             }else{
                                 task_records[task_id] = {
-                                    'Initiative': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct.Feature && rec.get('TimeEntryItem').WorkProduct.Feature.Parent,
-                                    'Feature': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct.Feature,
-                                    'WorkItemType': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'HierarchicalRequirement' ?  'User Story' : rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type || "",
-                                    'WorkItem': rec.get('TimeEntryItem').WorkProduct,
-                                    'TaskName' : rec.get('TimeEntryItem').Task,
-                                    'User': rec.get('TimeEntryItem').User && rec.get('TimeEntryItem').User._refObjectName || "",
-                                    'Project': rec.get('TimeEntryItem').Project && rec.get('TimeEntryItem').Project._refObjectName || "",
-                                    'StoryBusinessSponsor': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'HierarchicalRequirement' ? rec.get('TimeEntryItem').WorkProduct.c_BusinessSponsor || "" : "",
-                                    'DefectBusinessSponsor': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'Defect' ? rec.get('TimeEntryItem').WorkProduct.c_BusinessSponsor || "" : "",
-                                    'StoryPrimarySystemImpacted': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'HierarchicalRequirement' ? rec.get('TimeEntryItem').WorkProduct.c_PrimarySystemImpacted || "" : "",
-                                    'DefectPrimarySystemImpacted': rec.get('TimeEntryItem').WorkProduct && rec.get('TimeEntryItem').WorkProduct._type == 'Defect' ? rec.get('TimeEntryItem').WorkProduct.c_PrimarySystemImpacted || "" : "",
+                                    'Initiative': time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature && time_entry_item.WorkProduct.Feature.Parent,
+                                    'Feature': time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature,
+                                    // 'WorkItemType': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ?  'User Story' : time_entry_item.WorkProduct && time_entry_item.WorkProduct._type || "",
+                                    'WorkItem': time_entry_item.WorkProduct,
+                                    'Task' : time_entry_item.Task,
+                                    'User': time_entry_item.User && time_entry_item.User._refObjectName || "",
+                                    'Project': time_entry_item.Project && time_entry_item.Project._refObjectName || "",
+                                    // 'StoryBusinessSponsor': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ? time_entry_item.WorkProduct.c_BusinessSponsor || "" : "",
+                                    // 'DefectBusinessSponsor': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect' ? time_entry_item.WorkProduct.c_BusinessSponsor || "" : "",
+                                    // 'StoryPrimarySystemImpacted': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ? time_entry_item.WorkProduct.c_PrimarySystemImpacted || "" : "",
+                                    // 'DefectPrimarySystemImpacted': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect' ? time_entry_item.WorkProduct.c_PrimarySystemImpacted || "" : "",
+                                    'BusinessSponsor': business_sponsor,
+                                    'PrimarySystemImpacted':primary_system_impacted,
                                     'Hours': rec.get('Hours')
                                 };
                             }
@@ -213,6 +233,10 @@ Ext.define("PITimesheetReport", {
                 });                
             }
         })
+    },
+
+    _getMultiValues: function(multiValue){
+        return _.map(multiValue._tagsNameArray, 'Name')
     },
 
     _getWorkProductIds: function(){
@@ -300,6 +324,7 @@ Ext.define("PITimesheetReport", {
     },
     
     _displayGrid: function(store,field_names){
+        var me = this;
         this.down('#display_box').removeAll();
         this.down('#display_box').add({
             xtype: 'rallygrid',
@@ -318,6 +343,14 @@ Ext.define("PITimesheetReport", {
                                     return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
                             },
+                            {
+                                dataIndex:'Initiative',
+                                text:'Capabilities',
+                                flex:1,
+                                renderer: function(value){
+                                  return value && value.c_Capabilities && me._getMultiValues(value.c_Capabilities);
+                                }
+                            },                            
                             {
                                 dataIndex:'Feature',
                                 text:'Feature',
@@ -338,11 +371,11 @@ Ext.define("PITimesheetReport", {
                                   return value && value.InvestmentCategory || "";
                                 }
                             },                            
-                            {
-                                dataIndex:'WorkItemType',
-                                text:'Work Item Type',
+                            // {
+                            //     dataIndex:'WorkItemType',
+                            //     text:'Work Item Type',
 
-                            },                            
+                            // },                            
                             {
                                 dataIndex:'WorkItem',
                                 text:'Work Item',
@@ -354,9 +387,17 @@ Ext.define("PITimesheetReport", {
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
-                            },                                    
+                            }, 
                             {
-                                dataIndex:'TaskName',
+                                dataIndex:'WorkItem',
+                                text:'Plan Estimate',
+                                flex:1,
+                                renderer: function(value){
+                                  return value && value.PlanEstimate;
+                                }
+                            },                                                                
+                            {
+                                dataIndex:'Task',
                                 text:'Task',
                                 flex:1,
                                 renderer: function(value){
@@ -366,36 +407,59 @@ Ext.define("PITimesheetReport", {
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
                                 }
-                            },                            
+                            },     
+                            {
+                                dataIndex:'Task',
+                                text:'Task Estimate',
+                                flex:1,
+                                renderer: function(value){
+                                  return value && value.Estimate;
+                                }
+                            },     
+                            {
+                                dataIndex:'Task',
+                                text:'To Do',
+                                flex:1,
+                                renderer: function(value){
+                                  return value && value.ToDo;
+                                }
+                            },
+                            {
+                                dataIndex:'Hours',
+                                text:'Time Spent'
+                            },                                                       
                             {
                                 dataIndex:'User',
                                 text:'User'
                             }, 
                             {
                                 dataIndex:'Project',
-                                text:'Project',
+                                text:'Team',
                                 flex:1
-                            },  
-                            {
-                                dataIndex:'StoryBusinessSponsor',
-                                text:'Story Business Sponsor'
+                            },{
+                                dataIndex:'BusinessSponsor',
+                                text:'Business Sponsor'
                             },
                             {
-                                dataIndex:'DefectBusinessSponsor',
-                                text:'Defect Business Sponsor'
-                            },
-                            {
-                                dataIndex:'StoryPrimarySystemImpacted',
-                                text:'Story Primary System Impacted'
-                            },
-                            {
-                                dataIndex:'DefectPrimarySystemImpacted',
-                                text:'Defect Primary System Impacted'
-                            },
-                            {
-                                dataIndex:'Hours',
-                                text:'Hours'
-                            }                            
+                                dataIndex:'PrimarySystemImpacted',
+                                text:'Primary System Impacted'
+                            }     
+                            // {
+                            //     dataIndex:'StoryBusinessSponsor',
+                            //     text:'Story Business Sponsor'
+                            // },
+                            // {
+                            //     dataIndex:'DefectBusinessSponsor',
+                            //     text:'Defect Business Sponsor'
+                            // },
+                            // {
+                            //     dataIndex:'StoryPrimarySystemImpacted',
+                            //     text:'Story Primary System Impacted'
+                            // },
+                            // {
+                            //     dataIndex:'DefectPrimarySystemImpacted',
+                            //     text:'Defect Primary System Impacted'
+                            // }                            
                             ],
                     width:this.getWidth()
         });
