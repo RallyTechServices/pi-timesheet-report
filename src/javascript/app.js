@@ -48,21 +48,6 @@ Ext.define("PITimesheetReport", {
             }
         });
 
-        // me.down('#selector_box').add({
-        //     xtype: 'rallyiterationcombobox',
-        //     itemId: 'selectedIteration',
-        //     width: 500,
-        //     margin: '10 10 10 10',
-        //     itemId: 'selectedIteration',
-        //     fieldLabel: "Iteration:",
-        //     listeners: {
-        //         scope: me,
-        //         change: function(icb) {
-        //             me.iteration = icb;
-        //         }
-        //     }            
-        //  });
-
         me.down('#selector_box').add({
             xtype: 'rallydatefield',
             fieldLabel: 'Select Dates:',
@@ -202,15 +187,15 @@ Ext.define("PITimesheetReport", {
                                 task_records[task_id] = {
                                     'Initiative': time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature && time_entry_item.WorkProduct.Feature.Parent,
                                     'Feature': time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature,
-                                    // 'WorkItemType': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ?  'User Story' : time_entry_item.WorkProduct && time_entry_item.WorkProduct._type || "",
+                                    'InvestmentCategory':time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature && time_entry_item.WorkProduct.Feature.InvestmentCategory,
+                                    'Capabilities': time_entry_item.WorkProduct && time_entry_item.WorkProduct.Feature && time_entry_item.WorkProduct.Feature.Parent && me._getMultiValues(time_entry_item.WorkProduct.Feature.Parent.c_Capabilities),
                                     'WorkItem': time_entry_item.WorkProduct,
+                                    'PlanEstimate': time_entry_item.WorkProduct && time_entry_item.WorkProduct.PlanEstimate,
                                     'Task' : time_entry_item.Task,
+                                    'TaskEstimate' : time_entry_item.Task && time_entry_item.Task.Estimate,
+                                    'TaskToDo' : time_entry_item.Task && time_entry_item.Task.ToDo,
                                     'User': time_entry_item.User && time_entry_item.User._refObjectName || "",
                                     'Project': time_entry_item.Project && time_entry_item.Project._refObjectName || "",
-                                    // 'StoryBusinessSponsor': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ? time_entry_item.WorkProduct.c_BusinessSponsor || "" : "",
-                                    // 'DefectBusinessSponsor': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect' ? time_entry_item.WorkProduct.c_BusinessSponsor || "" : "",
-                                    // 'StoryPrimarySystemImpacted': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'HierarchicalRequirement' ? time_entry_item.WorkProduct.c_PrimarySystemImpacted || "" : "",
-                                    // 'DefectPrimarySystemImpacted': time_entry_item.WorkProduct && time_entry_item.WorkProduct._type == 'Defect' ? time_entry_item.WorkProduct.c_PrimarySystemImpacted || "" : "",
                                     'BusinessSponsor': business_sponsor,
                                     'PrimarySystemImpacted':primary_system_impacted,
                                     'Hours': rec.get('Hours')
@@ -249,7 +234,6 @@ Ext.define("PITimesheetReport", {
         }else{
             var us_filters = [{property:'Feature.Parent.ObjectID',value:piObjectID}]
 
-            // Deft.Promise.all([me._loadWsapiRecords({model:'HierarchicalRequirement',fetch:['ObjectID'],filters:us_filters}),me._loadWsapiRecords({model:'Defect',fetch:['ObjectID'],filters:defect_filters})]).then({
            me._loadWsapiRecords({model:'HierarchicalRequirement',fetch:['ObjectID'],filters:us_filters}).then({
                 scope:me,
                 success:function(records){
@@ -341,15 +325,20 @@ Ext.define("PITimesheetReport", {
                                 ,
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
+                                },
+                                doSort    : function(direction) {
+                                    me._sortStore({
+                                        store       : this.up('rallygrid').getStore(),
+                                        direction   : direction,
+                                        columnName  : 'Initiative',
+                                        subProperty : 'FormattedID'
+                                    });
                                 }
                             },
                             {
-                                dataIndex:'Initiative',
+                                dataIndex:'Capabilities',
                                 text:'Capabilities',
-                                flex:1,
-                                renderer: function(value){
-                                  return value && value.c_Capabilities && me._getMultiValues(value.c_Capabilities);
-                                }
+                                flex:1
                             },                            
                             {
                                 dataIndex:'Feature',
@@ -361,21 +350,21 @@ Ext.define("PITimesheetReport", {
                                 ,
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
+                                },
+                                doSort    : function(direction) {
+                                    me._sortStore({
+                                        store       : this.up('rallygrid').getStore(),
+                                        direction   : direction,
+                                        columnName  : 'Feature',
+                                        subProperty : 'FormattedID'
+                                    });
                                 }
                             },
                             {
-                                dataIndex:'Feature',
+                                dataIndex:'InvestmentCategory',
                                 text:'Investment Category',
-                                flex:1,
-                                renderer: function(value){
-                                  return value && value.InvestmentCategory || "";
-                                }
+                                flex:1
                             },                            
-                            // {
-                            //     dataIndex:'WorkItemType',
-                            //     text:'Work Item Type',
-
-                            // },                            
                             {
                                 dataIndex:'WorkItem',
                                 text:'Work Item',
@@ -386,15 +375,20 @@ Ext.define("PITimesheetReport", {
                                 ,
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
+                                },
+                                doSort    : function(direction) {
+                                    me._sortStore({
+                                        store       : this.up('rallygrid').getStore(),
+                                        direction   : direction,
+                                        columnName  : 'WorkItem',
+                                        subProperty : 'FormattedID'
+                                    });
                                 }
                             }, 
                             {
-                                dataIndex:'WorkItem',
+                                dataIndex:'PlanEstimate',
                                 text:'Plan Estimate',
-                                flex:1,
-                                renderer: function(value){
-                                  return value && value.PlanEstimate;
-                                }
+                                flex:1
                             },                                                                
                             {
                                 dataIndex:'Task',
@@ -406,23 +400,25 @@ Ext.define("PITimesheetReport", {
                                 ,
                                 exportRenderer:function(value){
                                     return value && value.FormattedID + ' : ' + value.Name || "";
+                                },
+                                doSort    : function(direction) {
+                                    me._sortStore({
+                                        store       : this.up('rallygrid').getStore(),
+                                        direction   : direction,
+                                        columnName  : 'Task',
+                                        subProperty : 'FormattedID'
+                                    });
                                 }
                             },     
                             {
-                                dataIndex:'Task',
+                                dataIndex:'TaskEstimate',
                                 text:'Task Estimate',
-                                flex:1,
-                                renderer: function(value){
-                                  return value && value.Estimate;
-                                }
+                                flex:1
                             },     
                             {
-                                dataIndex:'Task',
+                                dataIndex:'TaskToDo',
                                 text:'To Do',
-                                flex:1,
-                                renderer: function(value){
-                                  return value && value.ToDo;
-                                }
+                                flex:1
                             },
                             {
                                 dataIndex:'Hours',
@@ -444,27 +440,22 @@ Ext.define("PITimesheetReport", {
                                 dataIndex:'PrimarySystemImpacted',
                                 text:'Primary System Impacted'
                             }     
-                            // {
-                            //     dataIndex:'StoryBusinessSponsor',
-                            //     text:'Story Business Sponsor'
-                            // },
-                            // {
-                            //     dataIndex:'DefectBusinessSponsor',
-                            //     text:'Defect Business Sponsor'
-                            // },
-                            // {
-                            //     dataIndex:'StoryPrimarySystemImpacted',
-                            //     text:'Story Primary System Impacted'
-                            // },
-                            // {
-                            //     dataIndex:'DefectPrimarySystemImpacted',
-                            //     text:'Defect Primary System Impacted'
-                            // }                            
                             ],
                     width:this.getWidth()
         });
     },
 
+    _sortStore: function(config) {
+        config.store.sort({
+            property  : config.columnName,
+            direction : config.direction,
+            sorterFn  : function(v1, v2){
+                v1 = (config.subProperty) ? v1.get(config.columnName) && v1.get(config.columnName)[config.subProperty] || '' : v1.get(config.columnName) || '';
+                v2 = (config.subProperty) ? v2.get(config.columnName) && v2.get(config.columnName)[config.subProperty] || '' : v2.get(config.columnName) || '';
+                return v1 > v2 ? 1 : v1 < v2 ? -1 : 0;
+            }
+        });
+    },
 
     getPortfolioItemTypes: function(workspace) {
         var deferred = Ext.create('Deft.Deferred');
